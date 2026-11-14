@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.ConversationMember
+import com.muhabbet.messaging.domain.model.GroupInviteLink
 import com.muhabbet.messaging.domain.model.GroupJoinRequest
 import com.muhabbet.messaging.domain.model.JoinRequestStatus
 import com.muhabbet.messaging.domain.model.MemberRole
@@ -26,46 +27,28 @@ open class JoinRequestService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional
-    override fun requestJoin(conversationId: UUID, userId: UUID, linkId: UUID?): GroupJoinRequest {
-        // Check not already a member
-        val existing = conversationRepository.findMember(conversationId, userId)
-        if (existing != null) {
-            throw BusinessException(ErrorCode.GROUP_ALREADY_MEMBER)
-        }
-
-        // Check no existing pending request
-        val pendingRequest = joinRequestRepository.findByConversationIdAndUserIdAndStatus(
-            conversationId, userId, JoinRequestStatus.PENDING
-        )
-        if (pendingRequest != null) {
-            throw BusinessException(ErrorCode.JOIN_REQUEST_ALREADY_EXISTS)
-        }
-
-        val request = GroupJoinRequest(
-            conversationId = conversationId,
-            userId = userId,
-            inviteLinkId = linkId
-        )
-        val saved = joinRequestRepository.save(request)
-        log.info("Join request created: conv={}, user={}", conversationId, userId)
-        return saved
-    }
-
     /**
      * Admits the requester, at most once (#788).
      *
-     * Three guards were missing before the app had a caller for this: the request was never checked
-     * against the group in the URL, its status was never checked — so a rejected request could be
-     * "approved" later, and an approved one approved again into a duplicate membership row — and a
-     * requester who had meanwhile been added by hand was added a second time. A request in another
-     * group or no longer pending is reported as not found, which is also what it is from this
-     * group's point of view.
+     * Guards that were missing before the app had a caller for this:
+     * - the request was never checked against the group in the URL;
+     * - its status was never checked, so a rejected request could be "approved" later and an
+     *   approved one approved again;
+     * - a requester who had meanwhile been added by hand — or promoted to admin since — was written
+     *   back as a plain MEMBER, silently demoting them. (`conversation_members` has a composite
+     *   primary key, so a *duplicate* row was never possible; the overwrite was.)
+     * - the link the request came through is re-checked: it must be this group's, and approving
+     *   must not take it past `maxUses`. Without the second, a link limited to 10 uses with 30
+     *   pending requests admits all 30.
+     *
+     * A request in another group, no longer pending, or carrying another group's link is reported
+     * as not found, which is also what it is from this group's point of view.
      */
     @Transactional
     override fun approveJoin(conversationId: UUID, requestId: UUID, adminId: UUID) {
         val request = requirePending(conversationId, requestId)
         requireAdminOrOwner(request.conversationId, adminId)
+        val link = request.inviteLinkId?.let { requireLinkWithUsesLeft(request.conversationId, it) }
 
         joinRequestRepository.save(
             request.copy(status = JoinRequestStatus.APPROVED, reviewedBy = adminId, reviewedAt = Instant.now())
@@ -81,9 +64,8 @@ open class JoinRequestService(
             )
         }
 
-        // Increment invite link use count if applicable
-        if (request.inviteLinkId != null) {
-            inviteLinkRepository.incrementUseCount(request.inviteLinkId)
+        if (link != null) {
+            inviteLinkRepository.incrementUseCount(link.id)
         }
 
         log.info("Join request approved: id={}, user={}, by={}", requestId, request.userId, adminId)
@@ -123,6 +105,17 @@ open class JoinRequestService(
             throw BusinessException(ErrorCode.JOIN_REQUEST_NOT_FOUND)
         }
         return request
+    }
+
+    private fun requireLinkWithUsesLeft(conversationId: UUID, linkId: UUID): GroupInviteLink {
+        val link = inviteLinkRepository.findById(linkId)
+        if (link == null || link.conversationId != conversationId) {
+            throw BusinessException(ErrorCode.JOIN_REQUEST_NOT_FOUND)
+        }
+        if (link.maxUses != null && link.useCount >= link.maxUses) {
+            throw BusinessException(ErrorCode.INVITE_LINK_MAX_USES)
+        }
+        return link
     }
 
     private fun requireAdminOrOwner(conversationId: UUID, userId: UUID) {

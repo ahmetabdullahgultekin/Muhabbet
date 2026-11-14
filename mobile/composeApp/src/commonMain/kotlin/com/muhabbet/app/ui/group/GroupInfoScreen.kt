@@ -182,19 +182,25 @@ fun GroupInfoScreen(
         if (answeringRequestId != null) return
         answeringRequestId = request.id
         scope.launch {
+            // The outcome is the approve/reject call and nothing else: a follow-up read failing must
+            // not report an approval that happened as one that did not (see withAdmittedRequester).
             val result = runCatchingCancellable {
                 if (approve) {
                     joinRequestRepository.approve(conversationId, request.id)
-                    // The new member's row comes from the server, not from the request: it carries
-                    // the role and profile fields a request does not.
-                    conversation = conversationRepository.getConversations().items
-                        .firstOrNull { it.id == conversationId } ?: conversation
                 } else {
                     joinRequestRepository.reject(conversationId, request.id)
                 }
             }
             answeringRequestId = null
-            result.onSuccess { joinRequests = joinRequests.filterNot { it.id == request.id } }
+            result
+                .onSuccess {
+                    joinRequests = joinRequests.filterNot { it.id == request.id }
+                    if (approve) {
+                        conversation = conversation?.let {
+                            it.copy(participants = withAdmittedRequester(it.participants, request))
+                        }
+                    }
+                }
                 .onFailure { e ->
                     Log.e(TAG, "Failed to answer join request ${request.id}", e)
                     snackbarHostState.showSnackbar(joinRequestFailedMsg)

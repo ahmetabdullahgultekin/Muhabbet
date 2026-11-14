@@ -118,10 +118,13 @@ fun PrivacyDashboardScreen(
         dispatchExport(DataExportEvent.Started)
         scope.launch {
             try {
+                // The walk runs off the main thread (the repository moves itself to a worker), so
+                // progress is posted back here rather than written into screen state from there.
+                // Main is FIFO, so every PageStarted lands before the Assembled dispatched below.
                 val document = dataExportRepository.exportAll { page ->
-                    dispatchExport(DataExportEvent.PageStarted(page))
+                    scope.launch { dispatchExport(DataExportEvent.PageStarted(page)) }
                 }
-                val bytes = dataExportRepository.encode(document).encodeToByteArray()
+                val bytes = dataExportRepository.encodeToBytes(document)
                 dispatchExport(DataExportEvent.Assembled)
                 val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
                 documentSaver.save(dataExportFileName(today.toString()), bytes)

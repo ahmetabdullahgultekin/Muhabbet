@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.ConversationMember
+import com.muhabbet.messaging.domain.model.GroupInviteLink
 import com.muhabbet.messaging.domain.model.GroupJoinRequest
 import com.muhabbet.messaging.domain.model.JoinRequestStatus
 import com.muhabbet.messaging.domain.model.MemberRole
@@ -40,8 +41,20 @@ class JoinRequestServiceTest {
     private val requester = TestData.USER_ID_3
     private val requestId = UUID.randomUUID()
 
-    private fun pending(conversationId: UUID = group, status: JoinRequestStatus = JoinRequestStatus.PENDING) =
-        GroupJoinRequest(id = requestId, conversationId = conversationId, userId = requester, status = status)
+    private val linkId = UUID.randomUUID()
+
+    private fun pending(
+        conversationId: UUID = group,
+        status: JoinRequestStatus = JoinRequestStatus.PENDING,
+        inviteLinkId: UUID? = null
+    ) = GroupJoinRequest(
+        id = requestId, conversationId = conversationId, userId = requester, status = status, inviteLinkId = inviteLinkId
+    )
+
+    private fun link(conversationId: UUID = group, maxUses: Int? = null, useCount: Int = 0) = GroupInviteLink(
+        id = linkId, conversationId = conversationId, inviteToken = "t", createdBy = admin,
+        requiresApproval = true, maxUses = maxUses, useCount = useCount
+    )
 
     @BeforeEach
     fun setUp() {
@@ -94,9 +107,10 @@ class JoinRequestServiceTest {
     }
 
     @Test
-    fun `should not add a second membership when the requester was already added by hand`() {
+    fun `should not overwrite the requester's role when they were made an admin meanwhile`() {
         every { joinRequests.findById(requestId) } returns pending()
-        every { conversations.findMember(group, requester) } returns ConversationMember(group, requester)
+        every { conversations.findMember(group, requester) } returns
+            ConversationMember(group, requester, MemberRole.ADMIN)
 
         service.approveJoin(group, requestId, admin)
 
@@ -138,6 +152,40 @@ class JoinRequestServiceTest {
         service.rejectJoin(group, requestId, admin)
 
         assertEquals(JoinRequestStatus.REJECTED, saved.captured.status)
+        verify(exactly = 0) { conversations.saveMember(any()) }
+    }
+
+    @Test
+    fun `should count the use against the group's own link when an admin approves`() {
+        every { joinRequests.findById(requestId) } returns pending(inviteLinkId = linkId)
+        every { inviteLinks.findById(linkId) } returns link(maxUses = 5, useCount = 4)
+
+        service.approveJoin(group, requestId, admin)
+
+        verify { inviteLinks.incrementUseCount(linkId) }
+        verify { conversations.saveMember(match { it.userId == requester }) }
+    }
+
+    @Test
+    fun `should refuse approval when the link has no uses left`() {
+        every { joinRequests.findById(requestId) } returns pending(inviteLinkId = linkId)
+        every { inviteLinks.findById(linkId) } returns link(maxUses = 10, useCount = 10)
+
+        val e = assertThrows<BusinessException> { service.approveJoin(group, requestId, admin) }
+        assertEquals(ErrorCode.INVITE_LINK_MAX_USES, e.errorCode)
+        verify(exactly = 0) { conversations.saveMember(any()) }
+        verify(exactly = 0) { inviteLinks.incrementUseCount(any()) }
+        verify(exactly = 0) { joinRequests.save(any()) }
+    }
+
+    @Test
+    fun `should refuse approval and touch no counter when the request carries another group's link`() {
+        every { joinRequests.findById(requestId) } returns pending(inviteLinkId = linkId)
+        every { inviteLinks.findById(linkId) } returns link(conversationId = UUID.randomUUID())
+
+        val e = assertThrows<BusinessException> { service.approveJoin(group, requestId, admin) }
+        assertEquals(ErrorCode.JOIN_REQUEST_NOT_FOUND, e.errorCode)
+        verify(exactly = 0) { inviteLinks.incrementUseCount(any()) }
         verify(exactly = 0) { conversations.saveMember(any()) }
     }
 }

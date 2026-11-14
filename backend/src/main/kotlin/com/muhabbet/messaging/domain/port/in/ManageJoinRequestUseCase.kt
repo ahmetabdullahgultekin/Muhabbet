@@ -4,7 +4,8 @@ import com.muhabbet.messaging.domain.model.GroupJoinRequest
 import java.util.UUID
 
 interface ManageJoinRequestUseCase {
-    fun requestJoin(conversationId: UUID, userId: UUID, linkId: UUID?): GroupJoinRequest
+    // No `requestJoin`: a request is created only by `ManageInviteLinkUseCase.joinViaLink`, which
+    // validates the link first. A second, unvalidated way in is what #788's review removed.
 
     /**
      * Admits the requester. [conversationId] is the group the caller is acting in: a request that

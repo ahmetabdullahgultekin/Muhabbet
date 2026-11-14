@@ -1,6 +1,7 @@
 package com.muhabbet.messaging.domain.service
 
 import com.muhabbet.messaging.domain.model.GroupInviteLink
+import com.muhabbet.messaging.domain.model.GroupJoinRequest
 import com.muhabbet.messaging.domain.model.MemberRole
 import com.muhabbet.messaging.domain.port.out.ConversationRepository
 import com.muhabbet.messaging.domain.port.out.GroupInviteLinkRepository
@@ -10,6 +11,7 @@ import com.muhabbet.shared.exception.BusinessException
 import com.muhabbet.shared.exception.ErrorCode
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
@@ -173,6 +175,43 @@ class InviteLinkServiceTest {
 
         assertEquals(ErrorCode.GROUP_PERMISSION_DENIED, ex.errorCode)
         verify(exactly = 0) { inviteLinkRepository.deactivate(any()) }
+    }
+
+    // --- joinViaLink: since #788's review the only way a join request is created ---
+
+    @Test
+    fun `should file a request carrying this group's link when the link requires approval`() {
+        val approvalLink = link().copy(requiresApproval = true)
+        every { inviteLinkRepository.findByToken("token-abc") } returns approvalLink
+        every { conversationRepository.findMember(groupId, strangerId) } returns null
+        every { joinRequestRepository.findByConversationIdAndUserIdAndStatus(groupId, strangerId, any()) } returns null
+        val saved = slot<GroupJoinRequest>()
+        every { joinRequestRepository.save(capture(saved)) } answers { saved.captured }
+
+        service.joinViaLink("token-abc", strangerId)
+
+        assertEquals(groupId, saved.captured.conversationId)
+        assertEquals(approvalLink.id, saved.captured.inviteLinkId)
+        verify(exactly = 0) { conversationRepository.saveMember(any()) }
+    }
+
+    @Test
+    fun `should file no request when the token matches no link`() {
+        every { inviteLinkRepository.findByToken("forged") } returns null
+
+        val e = assertThrows<BusinessException> { service.joinViaLink("forged", strangerId) }
+        assertEquals(ErrorCode.INVITE_LINK_NOT_FOUND, e.errorCode)
+        verify(exactly = 0) { joinRequestRepository.save(any()) }
+    }
+
+    @Test
+    fun `should file no request when the link has no uses left`() {
+        every { inviteLinkRepository.findByToken("token-abc") } returns
+            link().copy(requiresApproval = true, maxUses = 2, useCount = 2)
+
+        val e = assertThrows<BusinessException> { service.joinViaLink("token-abc", strangerId) }
+        assertEquals(ErrorCode.INVITE_LINK_MAX_USES, e.errorCode)
+        verify(exactly = 0) { joinRequestRepository.save(any()) }
     }
 
     private fun givenRole(userId: UUID, role: MemberRole) {

@@ -9,6 +9,10 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Runnable
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -16,7 +20,10 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertSame
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -121,14 +128,62 @@ class DataExportRepositoryTest {
     }
 
     @Test
-    fun encode_producesJsonThatReadsBackToTheSameDocument() = runTest {
+    fun encodeToBytes_producesJsonThatReadsBackToTheSameDocument() = runTest {
         val (client, _) = apiClient { HttpStatusCode.OK to page(listOf("m1"), false, null, emptyList(), false, null) }
         val repository = DataExportRepository(client)
         val document = repository.exportAll()
 
-        val decoded = Json.parseToJsonElement(repository.encode(document))
+        val decoded = Json.parseToJsonElement(repository.encodeToBytes(document).decodeToString())
 
         assertEquals(document, decoded)
+    }
+
+    @Test
+    fun encodeToBytes_isByteForByteWhatThePrettyPrinterWouldHaveWritten() = runTest {
+        // The streaming writer replaces `Json { prettyPrint = true }.encodeToString(...)`; a user
+        // opening the file must not be able to tell. Escapes, unicode, nesting, empties and every
+        // scalar kind are in here, because those are where a hand-written writer would drift.
+        val document = Json.parseToJsonElement(
+            """{"s":"a\"b\\c\n\t\u0001 ğüşİ 😀","n":-1.5e3,"i":42,"t":true,"f":false,"z":null,
+               "e":{},"a":[],"nested":{"list":[{"k":[1,[2,{}]]},"x"]}}"""
+        ) as JsonObject
+        val expected = Json { prettyPrint = true }.encodeToString(JsonObject.serializer(), document)
+
+        val bytes = DataExportRepository(apiClient { HttpStatusCode.OK to "{}" }.first).encodeToBytes(document)
+
+        assertEquals(expected, bytes.decodeToString())
+        assertContentEquals(expected.encodeToByteArray(), bytes)
+    }
+
+    @Test
+    fun theRepository_defaultsToTheDefaultDispatcher_notTheCallers() {
+        // The screen calls from Main. If this default ever becomes "whatever the caller is on",
+        // a large export blocks the UI thread again.
+        assertSame(Dispatchers.Default, DataExportRepository(apiClient { HttpStatusCode.OK to "{}" }.first).workDispatcher)
+    }
+
+    @Test
+    fun exportAllAndEncode_bothRunOnTheWorkDispatcher() = runTest {
+        val (client, _) = apiClient { HttpStatusCode.OK to page(listOf("m1"), false, null, emptyList(), false, null) }
+        val work = RecordingDispatcher(StandardTestDispatcher(testScheduler))
+        val repository = DataExportRepository(client, workDispatcher = work)
+
+        val document = repository.exportAll()
+        val afterExport = work.dispatches
+        repository.encodeToBytes(document)
+
+        assertTrue(afterExport > 0, "exportAll never moved to the work dispatcher")
+        assertTrue(work.dispatches > afterExport, "encodeToBytes never moved to the work dispatcher")
+    }
+
+    private class RecordingDispatcher(private val delegate: CoroutineDispatcher) : CoroutineDispatcher() {
+        var dispatches = 0
+            private set
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            dispatches++
+            delegate.dispatch(context, block)
+        }
     }
 
     @Test

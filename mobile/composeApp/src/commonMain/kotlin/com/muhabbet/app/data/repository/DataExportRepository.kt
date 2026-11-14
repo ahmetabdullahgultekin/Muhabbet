@@ -3,7 +3,9 @@ package com.muhabbet.app.data.repository
 import com.muhabbet.app.data.remote.ApiClient
 import com.muhabbet.shared.api.ApiRoutes
 import io.ktor.http.encodeURLParameter
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -28,7 +30,17 @@ import kotlinx.serialization.json.jsonPrimitive
  * drop any category the server adds before the app learns about it — the "quietly incomplete"
  * failure the server-side export (#341) was built to avoid.
  */
-class DataExportRepository(private val apiClient: ApiClient) {
+class DataExportRepository(
+    private val apiClient: ApiClient,
+    /**
+     * Where the walk and the encoding run. Decoding up to 500 items a page into a tree, merging
+     * them, and serialising the whole account are CPU-bound and scale with the account; on the
+     * caller's dispatcher — the screen's, which is Main — a heavy account froze the UI for seconds
+     * (an ANR on Android). Both public functions move here themselves, so the repository is safe to
+     * call from any thread (#780 review). A parameter only so a test can see it is used.
+     */
+    internal val workDispatcher: CoroutineDispatcher = Dispatchers.Default
+) {
 
     /**
      * Fetches every page and returns the merged document. [onPage] is told each page number as its
@@ -37,7 +49,7 @@ class DataExportRepository(private val apiClient: ApiClient) {
      * Fails (throws) rather than returning a partial document: an export that stopped at page 7
      * without saying so would be a false statement to a data subject about what we hold.
      */
-    suspend fun exportAll(onPage: (Int) -> Unit = {}): JsonObject {
+    suspend fun exportAll(onPage: (Int) -> Unit = {}): JsonObject = withContext(workDispatcher) {
         val walker = ExportPageWalker()
         var page = 0
         while (!walker.isComplete) {
@@ -46,11 +58,17 @@ class DataExportRepository(private val apiClient: ApiClient) {
             onPage(page)
             walker.accept(fetchPage(walker.messagesCursor, walker.mediaCursor))
         }
-        return walker.document()
+        walker.document()
     }
 
-    /** Pretty-printed, because this file is meant to be opened and read by a person. */
-    fun encode(document: JsonObject): String = PrettyJson.encodeToString(JsonObject.serializer(), document)
+    /**
+     * The file's bytes: UTF-8, pretty-printed because this file is meant to be opened and read by a
+     * person, and produced without an intermediate `String` of the whole account (see
+     * [PrettyJsonBytes]). Off the caller's thread, like [exportAll].
+     */
+    suspend fun encodeToBytes(document: JsonObject): ByteArray = withContext(workDispatcher) {
+        PrettyJsonBytes.encode(document)
+    }
 
     private suspend fun fetchPage(messagesCursor: String?, mediaCursor: String?): JsonObject {
         val query = buildList {
@@ -68,8 +86,6 @@ class DataExportRepository(private val apiClient: ApiClient) {
 
         /** 5M messages at 500 a page. A loop guard against a server that never says "done". */
         const val MAX_PAGES = 10_000
-
-        private val PrettyJson = Json { prettyPrint = true }
     }
 }
 
